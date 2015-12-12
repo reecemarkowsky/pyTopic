@@ -2,12 +2,18 @@ __author__ = 'rmarkowsky'
 
 # stdlib
 from collections import defaultdict
+from random import randint
 
 # 3p
 from kafka.client import KafkaClient
 from kafka.common import OffsetRequest
 from kazoo.client import KazooClient
 from kazoo.exceptions import NoNodeError
+
+
+def replicaIndex (first_replica_index, second_replica_shift, replica_index, number_brokers):
+    shift = 1 + (second_replica_shift + replica_index) % (number_brokers - 1)
+    return (first_replica_index + shift) % number_brokers
 
 
 # There are 2 goals of replica assignment:
@@ -38,20 +44,37 @@ def assignReplicasToBrokers(broker_list,
     if replication_factor > broker_list.size():
         raise ValueError("replication factor: " + replication_factor +
                                       " larger than available brokers: " + broker_list.size)
+
+
+    #val ret = new mutable.HashMap[Int, List[Int]]()
     ret = {}
-    val startIndex = if (fixedStartIndex >= 0) fixedStartIndex else rand.nextInt(brokerList.size)
-    var currentPartitionId = if (startPartitionId >= 0) startPartitionId else 0
-    var nextReplicaShift = if (fixedStartIndex >= 0) fixedStartIndex else rand.nextInt(brokerList.size)
-    for (i <- 0 until nPartitions) {
-    if (currentPartitionId > 0 && (currentPartitionId % brokerList.size == 0))
-    nextReplicaShift += 1
-    val firstReplicaIndex = (currentPartitionId + startIndex) % brokerList.size
-    var replicaList = List(brokerList(firstReplicaIndex))
-    for (j <- 0 until replicationFactor - 1)
-    replicaList ::= brokerList(replicaIndex(firstReplicaIndex, nextReplicaShift, j, brokerList.size))
-    ret.put(currentPartitionId, replicaList.reverse)
-    currentPartitionId = currentPartitionId + 1
-    }
-    ret.toMap
-    }"
+    if fixed_start_index >= 0:
+        start_index = fixed_start_index
+    else:
+        start_index = randint(0,broker_list.size)
+
+    if start_partition_id >= 0:
+        current_partition_id = start_partition_id
+    else:
+        current_partition_id = 0
+
+    if fixed_start_index >= 0:
+        next_replica_shift = fixed_start_index
+    else:
+        next_replica_shift = randint(0,broker_list.size)
+
+
+    for i in range (0, num_partitions):
+        if current_partition_id > 0 and current_partition_id % broker_list.size == 0:
+            next_replica_shift += 1
+            first_replica_index = (current_partition_id + start_index) % broker_list.size
+            replica_list = broker_list[first_replica_index:] #List(brokerList(first_replica_index))
+            for j in range (0,replication_factor - 1):
+                #replicaList ::= brokerList(replicaIndex(firstReplicaIndex, nextReplicaShift, j, brokerList.size))
+                replica_list = broker_list[replicaIndex(first_replica_index,next_replica_shift,j,broker_list.size):]
+            ret.put(current_partition_id, replica_list.reverse)
+            current_partition_id = current_partition_id + 1
+
+    return ret.toMap
+
 
