@@ -10,11 +10,6 @@ from random import randint
 #from kazoo.client import KazooClient
 #from kazoo.exceptions import NoNodeError
 
-def replica_index (first_replica_index, second_replica_shift, replica_index, number_brokers):
-    shift = 1 + (second_replica_shift + replica_index) % (number_brokers - 1)
-    return (first_replica_index + shift) % number_brokers
-
-
 def assignReplicasToBrokers(broker_list,
                             num_partitions,
                             replication_factor,
@@ -28,8 +23,7 @@ def assignReplicasToBrokers(broker_list,
         raise ValueError("replication factor: " + replication_factor +
                                       " larger than available brokers: " + broker_list.size)
 
-
-    #val ret = new mutable.HashMap[Int, List[Int]]()
+   #val ret = new mutable.HashMap[Int, List[Int]]()
     ret = {}
     if fixed_start_index >= 0:
         start_index = fixed_start_index
@@ -46,17 +40,18 @@ def assignReplicasToBrokers(broker_list,
     else:
         next_replica_shift = randint(0,len(broker_list))
 
+    # initialize replica assignment arrays
+    for p in range (0, num_partitions):
+        ret[str(p)] = [0] * replication_factor
 
-    for i in range (0, num_partitions):
-        if current_partition_id > 0 and current_partition_id % len(broker_list) == 0:
-            next_replica_shift += 1
-            first_replica_index = (current_partition_id + start_index) % len(broker_list)
-            replica_list = broker_list[first_replica_index:] #List(brokerList(first_replica_index))
-            for j in range (0,replication_factor - 1):
-                #replicaList ::= brokerList(replicaIndex(firstReplicaIndex, nextReplicaShift, j, brokerList.size))
-                replica_list = broker_list[replica_index(first_replica_index,next_replica_shift,j,len(broker_list)):]
-            ret[current_partition_id] = replica_list.reverse
-            current_partition_id = current_partition_id + 1
+    shift = 0
+    num_brokers = len(broker_list)
+    for replica in range (0, replication_factor):
+        for p in range (0,num_partitions):
+            position = (num_partitions * replica + p)
+            if position % num_brokers == 0 and replica > 0:
+                shift += 1
+            ret[str(p)][replica] = (position + shift) % num_brokers
 
     return ret
 
